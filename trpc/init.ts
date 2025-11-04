@@ -1,6 +1,9 @@
 import { initTRPC } from "@trpc/server";
 import { ipAddress } from "@vercel/functions";
 import superjson from "superjson";
+import { withAccess } from "@/trpc/middleware/access";
+import { withLogging } from "@/trpc/middleware/logging";
+import { withRatelimit } from "@/trpc/middleware/ratelimit";
 
 export const createContext = async (opts?: { req?: Request }) => {
   const req = opts?.req;
@@ -54,22 +57,16 @@ export const t = initTRPC
 export const createTRPCRouter = t.router;
 export const createCallerFactory = t.createCallerFactory;
 
-const withLogging = t.middleware(async ({ path, type, next }) => {
-  const start = performance.now();
-  console.debug(`[trpc] start ${path} (${type})`);
-  try {
-    const result = await next();
-    const durationMs = Math.round(performance.now() - start);
-    console.info(`[trpc] ok ${path} (${type}) ${durationMs}ms`);
-    return result;
-  } catch (err) {
-    const durationMs = Math.round(performance.now() - start);
-    console.error(
-      `[trpc] error ${path} (${type}) ${durationMs}ms`,
-      err instanceof Error ? err : new Error(String(err)),
-    );
-    throw err;
-  }
-});
-
+/**
+ * Public procedure with logging.
+ * Use this for all public endpoints (e.g. health check, etc).
+ */
 export const publicProcedure = t.procedure.use(withLogging);
+
+/**
+ * Domain-specific procedure with rate limiting and access tracking.
+ * Use this for all domain data endpoints (dns, hosting, seo, etc).
+ */
+export const domainProcedure = publicProcedure
+  .use(withRatelimit)
+  .use(withAccess);

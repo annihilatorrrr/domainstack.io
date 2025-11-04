@@ -65,7 +65,14 @@ export async function assertRateLimit(service: ServiceName, ip: string) {
   return { limit: res.limit, remaining: res.remaining, reset: res.reset };
 }
 
-export const rateLimitMiddleware = t.middleware(async ({ ctx, next, meta }) => {
+/**
+ * tRPC middleware to rate limit requests.
+ * - Expects meta to have a `service` field containing the service name.
+ * - Expects ctx to have an `ip` field containing the IP address.
+ * - Throws a TRPCError if the rate limit is exceeded.
+ * Returns the result of the next procedure.
+ */
+export const withRatelimit = t.middleware(async ({ ctx, next, meta }) => {
   const service = (meta?.service ?? "") as ServiceName;
   if (!service || !ctx.ip) return next();
   await assertRateLimit(service, ctx.ip);
